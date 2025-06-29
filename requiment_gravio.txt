@@ -1,0 +1,41 @@
+import gradio as gr
+import numpy as np
+from PIL import Image
+from sklearn.datasets import fetch_openml
+from sklearn.linear_model import SGDClassifier
+
+# Load & train SGD
+mnist = fetch_openml('mnist_784', version=1, as_frame=False)
+X, y = mnist["data"], mnist["target"].astype(np.uint8)
+X_train, X_test = X[:60000], X[60000:]
+y_train, y_test = y[:60000], y[60000:]
+
+sgd_clf = SGDClassifier(loss="hinge", random_state=42)
+sgd_clf.fit(X_train, y_train)
+
+# Safe preprocessing with Sketchpad dict output
+def preprocess(img):
+    print(f"Input type: {type(img)}")
+    img_array = img["layers"][0]  # ✅ fix: take first drawn layer
+    img = Image.fromarray(np.array(img_array).astype(np.uint8))
+    img = img.convert("L").resize((28, 28))
+    img_arr = 255 - np.array(img)
+    return img_arr.reshape(1, -1)
+
+def predict_digit(img):
+    try:
+        img_processed = preprocess(img)
+        pred = sgd_clf.predict(img_processed)[0]
+        return f"Predicted digit: {pred}"
+    except Exception as e:
+        return f"Error: {e}"
+
+demo = gr.Interface(
+    fn=predict_digit,
+    inputs=gr.Sketchpad(canvas_size=(28, 28)),
+    outputs="text",
+    title="MNIST Digit Recognizer",
+    description="Draw a digit (0–9) and get a prediction using SGD."
+)
+
+demo.launch()
